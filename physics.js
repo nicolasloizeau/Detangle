@@ -10,10 +10,10 @@ function initCircle() {
     const y = cy + r * Math.sin(a);
     points.push({ x, y, z: 0, px: x, py: y, pz: 0 });
   }
-  restLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+  restLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y, 0);
   bendRest = points.map((p, i) => {
     const q = points[(i + 2) % N_POINTS];
-    return Math.hypot(q.x - p.x, q.y - p.y);
+    return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
   });
   gridCellSize = 4 * restLen;
   crossings = [];
@@ -34,24 +34,21 @@ function integrate() {
   }
 }
 
-// ── XY constraints (inextensible + bending) ──────────────────────────────────
-// Restore target xy distance between a and b; pinned (dragged) endpoints don't move
+// ── 3D constraints (inextensible + bending) ──────────────────────────────────
+// Restore target 3D distance between a and b; pinned (dragged) endpoints don't move
 function applyDist(a, b, target, stiffness, aPinned, bPinned) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const dist = Math.hypot(dx, dy) || 1e-9;
+  const dz = b.z - a.z;
+  const dist = Math.hypot(dx, dy, dz) || 1e-9;
   const corr = ((dist - target) / dist) * stiffness;
   if (!aPinned && !bPinned) {
-    a.x += dx * corr * 0.5;
-    a.y += dy * corr * 0.5;
-    b.x -= dx * corr * 0.5;
-    b.y -= dy * corr * 0.5;
+    a.x += dx * corr * 0.5;  a.y += dy * corr * 0.5;  a.z += dz * corr * 0.5;
+    b.x -= dx * corr * 0.5;  b.y -= dy * corr * 0.5;  b.z -= dz * corr * 0.5;
   } else if (!aPinned) {
-    a.x += dx * corr;
-    a.y += dy * corr;
+    a.x += dx * corr;  a.y += dy * corr;  a.z += dz * corr;
   } else if (!bPinned) {
-    b.x -= dx * corr;
-    b.y -= dy * corr;
+    b.x -= dx * corr;  b.y -= dy * corr;  b.z -= dz * corr;
   }
 }
 
@@ -113,9 +110,11 @@ function update() {
     integrate();
     applyLift();
     solveConstraints();
+    applySelfCollision(points);
     applyZDynamics();
   }
   crossings = detectCrossings(points);
+  updateDiagnostics(points);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

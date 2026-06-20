@@ -4,7 +4,7 @@ const CIRCLE_RADIUS = 0.45; // fraction of the smaller canvas dimension
 const CONSTRAINT_ITER = 30;
 const DAMPING = 0.8; // lower = more friction
 const BEND_STIFFNESS = 0.1; // 0..1, resists sharp kinks
-const SUBSTEPS = 2; // integration steps per frame
+const SUBSTEPS = 16; // integration steps per frame
 const GRAB_RADIUS = 30; // pixels
 
 const LINE_WIDTH = 8;
@@ -16,6 +16,11 @@ const RENDER_CROSSING_LENGTH = 40; // pixels; fade window around each crossing (
 const RENDER_CROSSING_LENGTH_2 = 12; // pixels; over-strand redraw width (pass 2)
 const CROSSING_DARK_FACTOR = 0.5; // brightness multiplier at the under-strand center (< 1)
 const CROSSING_LIGHT_FACTOR = 1.5; // brightness multiplier at the over-strand center  (> 1)
+
+// ── Hard sphere self-collision ────────────────────────────────────────────────
+const SPHERE_RADIUS = LINE_WIDTH;      // collision sphere radius per rope point (px)
+const HARD_SPHERE_IGNORE_STEPS = 12;  // skip pairs within this many rope indices
+const SELF_COLLISION_PASSES = 5;      // correction passes per substep
 
 // ── Z / quasi-3D ─────────────────────────────────────────────────────────────
 const Z_GROUND = 0.01; // per-iter pull of each z toward the flat plane (z=0)

@@ -67,9 +67,22 @@ function drawCrossings() {
   for (const { over } of ou) drawArc(over, halfSegs2, CROSSING_LIGHT_FACTOR);
 }
 
+function drawOverlaps() {
+  if (overlappingPoints.size === 0) return;
+  ctx.fillStyle = 'red';
+  for (const i of overlappingPoints) {
+    const p = points[i];
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, SPHERE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function render() {
   ctx.fillStyle = COLOR_BG;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawRope();
   drawCrossings();
+  drawOverlaps();
+  drawDiagnostics();
 }
