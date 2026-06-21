@@ -83,6 +83,5 @@ function render() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawRope();
   drawCrossings();
-  drawOverlaps();
-  drawDiagnostics();
+  if (DEBUG) { drawOverlaps(); drawDiagnostics(); }
 }

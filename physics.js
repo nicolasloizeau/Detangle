@@ -10,7 +10,7 @@ function initCircle() {
     const y = cy + r * Math.sin(a);
     points.push({ x, y, z: 0, px: x, py: y, pz: 0 });
   }
-  restLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y, 0);
+  restLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
   bendRest = points.map((p, i) => {
     const q = points[(i + 2) % N_POINTS];
     return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
@@ -64,8 +64,12 @@ function solveConstraints() {
       applyDist(points[i], points[j], bendRest[i], BEND_STIFFNESS, i === dragged, j === dragged);
     }
     if (dragged !== null) {
-      points[dragged].x = mouseX;
-      points[dragged].y = mouseY;
+      points[dragged].x = dragTargetX;
+      points[dragged].y = dragTargetY;
+    }
+    if ((iter + 1) % COLLISION_ITER_INTERVAL === 0 || iter === CONSTRAINT_ITER - 1) {
+      if (iter === CONSTRAINT_ITER - 1) overlappingPoints.clear();
+      collisionPass(points);
     }
   }
 }
@@ -107,10 +111,21 @@ function applyLift() {
 // ── Step ─────────────────────────────────────────────────────────────────────
 function update() {
   for (let s = 0; s < SUBSTEPS; s++) {
+    if (dragged !== null) {
+      const dx = mouseX - dragTargetX, dy = mouseY - dragTargetY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > DRAG_MAX_SPEED) {
+        dragTargetX += dx / dist * DRAG_MAX_SPEED;
+        dragTargetY += dy / dist * DRAG_MAX_SPEED;
+      } else {
+        dragTargetX = mouseX;
+        dragTargetY = mouseY;
+      }
+    }
     integrate();
     applyLift();
+    buildSelfCollisionGrid(points);
     solveConstraints();
-    applySelfCollision(points);
     applyZDynamics();
   }
   crossings = detectCrossings(points);

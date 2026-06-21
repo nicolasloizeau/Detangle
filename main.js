@@ -1,7 +1,7 @@
 // ── Config ───────────────────────────────────────────────────────────────────
 const N_POINTS = 1024;
 const CIRCLE_RADIUS = 0.45; // fraction of the smaller canvas dimension
-const CONSTRAINT_ITER = 30;
+const CONSTRAINT_ITER = 20;
 const DAMPING = 0.8; // lower = more friction
 const BEND_STIFFNESS = 0.1; // 0..1, resists sharp kinks
 const SUBSTEPS = 16; // integration steps per frame
@@ -17,10 +17,16 @@ const RENDER_CROSSING_LENGTH_2 = 12; // pixels; over-strand redraw width (pass 2
 const CROSSING_DARK_FACTOR = 0.5; // brightness multiplier at the under-strand center (< 1)
 const CROSSING_LIGHT_FACTOR = 1.5; // brightness multiplier at the over-strand center  (> 1)
 
+// ── Debug ─────────────────────────────────────────────────────────────────────
+const DEBUG = false; // show HUD and red overlap markers
+
+// ── Drag ──────────────────────────────────────────────────────────────────────
+const DRAG_MAX_SPEED = 10; // max px the drag target moves toward the cursor per substep
+
 // ── Hard sphere self-collision ────────────────────────────────────────────────
-const SPHERE_RADIUS = LINE_WIDTH;      // collision sphere radius per rope point (px)
-const HARD_SPHERE_IGNORE_STEPS = 12;  // skip pairs within this many rope indices
-const SELF_COLLISION_PASSES = 5;      // correction passes per substep
+const SPHERE_RADIUS = LINE_WIDTH; // collision sphere radius per rope point (px)
+const HARD_SPHERE_IGNORE_STEPS = 12; // skip pairs within this many rope indices
+const COLLISION_ITER_INTERVAL = 5; // run collisionPass every Nth constraint iteration
 
 // ── Z / quasi-3D ─────────────────────────────────────────────────────────────
 const Z_GROUND = 0.01; // per-iter pull of each z toward the flat plane (z=0)
@@ -46,6 +52,8 @@ let dragged = null; // index of grabbed point, or null
 let dragButton = null; // 0=left, 2=right, null=none
 let mouseX = 0,
   mouseY = 0;
+let dragTargetX = 0,
+  dragTargetY = 0; // rate-limited proxy for the cursor position
 
 // ── Input: mouse drag ────────────────────────────────────────────────────────
 function canvasPos(e) {
@@ -71,11 +79,19 @@ canvas.addEventListener("mousedown", (e) => {
   ({ x: mouseX, y: mouseY } = canvasPos(e));
   dragged = nearestPoint(mouseX, mouseY);
   dragButton = e.button;
+  if (dragged !== null) {
+    dragTargetX = points[dragged].x;
+    dragTargetY = points[dragged].y;
+  }
 });
 canvas.addEventListener("mousemove", (e) => {
   ({ x: mouseX, y: mouseY } = canvasPos(e));
 });
-canvas.addEventListener("mouseup", () => {
+window.addEventListener("mouseup", () => {
+  dragged = null;
+  dragButton = null;
+});
+window.addEventListener("blur", () => {
   dragged = null;
   dragButton = null;
 });
