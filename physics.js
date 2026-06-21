@@ -6,11 +6,15 @@ function initCircle() {
   const r = Math.min(canvas.width, canvas.height) * CIRCLE_RADIUS;
   for (let i = 0; i < N_POINTS; i++) {
     const a = (2 * Math.PI * i) / N_POINTS;
-    const x = cx + r * Math.cos(a);
-    const y = cy + r * Math.sin(a);
+    const rr = r * (1 + WIGGLE_AMPLITUDE * Math.sin(WIGGLE_FREQUENCY * a));
+    const x = cx + rr * Math.cos(a);
+    const y = cy + rr * Math.sin(a);
     points.push({ x, y, z: 0, px: x, py: y, pz: 0 });
   }
-  restLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+  segRest = points.map((p, i) => {
+    const q = points[(i + 1) % N_POINTS];
+    return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+  });
   bendRest = points.map((p, i) => {
     const q = points[(i + 2) % N_POINTS];
     return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
@@ -38,7 +42,7 @@ function applyDist(a, b, target, stiffness, aPinned, bPinned) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dz = b.z - a.z;
-  const dist = Math.hypot(dx, dy, dz) || 1e-9;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
   const corr = ((dist - target) / dist) * stiffness;
   if (!aPinned && !bPinned) {
     a.x += dx * corr * 0.5;  a.y += dy * corr * 0.5;  a.z += dz * corr * 0.5;
@@ -53,14 +57,17 @@ function applyDist(a, b, target, stiffness, aPinned, bPinned) {
 function solveConstraints() {
   const n = points.length;
   for (let iter = 0; iter < CONSTRAINT_ITER; iter++) {
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      applyDist(points[i], points[j], restLen, 1, i === dragged, j === dragged);
-    }
-    for (let i = 0; i < n; i++) {
-      const j = (i + 2) % n;
-      applyDist(points[i], points[j], bendRest[i], BEND_STIFFNESS, i === dragged, j === dragged);
-    }
+    // Segment constraints — unroll wrap to avoid % n in the inner loop
+    for (let i = 0; i < n - 1; i++)
+      applyDist(points[i], points[i + 1], segRest[i], 1, i === dragged, i + 1 === dragged);
+    applyDist(points[n - 1], points[0], segRest[n - 1], 1, n - 1 === dragged, 0 === dragged);
+
+    // Bending constraints — unroll last two wrap cases
+    for (let i = 0; i < n - 2; i++)
+      applyDist(points[i], points[i + 2], bendRest[i], BEND_STIFFNESS, i === dragged, i + 2 === dragged);
+    applyDist(points[n - 2], points[0], bendRest[n - 2], BEND_STIFFNESS, n - 2 === dragged, 0 === dragged);
+    applyDist(points[n - 1], points[1], bendRest[n - 1], BEND_STIFFNESS, n - 1 === dragged, 1 === dragged);
+
     if (dragged !== null) {
       points[dragged].x = dragTargetX;
       points[dragged].y = dragTargetY;
@@ -74,14 +81,18 @@ function solveConstraints() {
 
 // ── Z dynamics (act on z only) ───────────────────────────────────────────────
 // Ground pull toward the plane, then Laplacian smoothing for out-of-plane stiffness.
+const _zBuf = new Float64Array(N_POINTS); // pre-allocated, avoids per-substep array creation
+
 function applyZDynamics() {
   const n = points.length;
-  for (const p of points) p.z -= Z_GROUND * p.z;
-  const z = points.map((p) => p.z);
   for (let i = 0; i < n; i++) {
-    const avg = (z[(i - 1 + n) % n] + z[(i + 1) % n]) * 0.5;
-    points[i].z += Z_STIFFNESS * (avg - z[i]);
+    points[i].z *= (1 - Z_GROUND);
+    _zBuf[i] = points[i].z;
   }
+  points[0].z += Z_STIFFNESS * ((_zBuf[n - 1] + _zBuf[1]) * 0.5 - _zBuf[0]);
+  for (let i = 1; i < n - 1; i++)
+    points[i].z += Z_STIFFNESS * ((_zBuf[i - 1] + _zBuf[i + 1]) * 0.5 - _zBuf[i]);
+  points[n - 1].z += Z_STIFFNESS * ((_zBuf[n - 2] + _zBuf[0]) * 0.5 - _zBuf[n - 1]);
 }
 
 // ── Mouse lift force (the only way the player affects z) ──────────────────────
@@ -128,6 +139,7 @@ function update() {
     applyLift();
     buildSelfCollisionGrid(points);
     solveConstraints();
+    frictionPass(points);
     applyZDynamics();
   }
   updateDiagnostics(points);

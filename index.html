@@ -1,37 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Knot</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #1a1a2e; }
-    canvas { display: block; }
-    #tangle-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 8px 18px;
-      background: #383838;
-      color: #c9c9c9;
-      border: 1px solid #555;
-      border-radius: 4px;
-      font: 14px monospace;
-      cursor: pointer;
-      user-select: none;
-    }
-    #tangle-btn:hover:not(:disabled) { background: #484848; }
-    #tangle-btn:disabled { opacity: 0.5; cursor: default; }
-  </style>
-</head>
-<body>
-  <canvas id="c"></canvas>
-  <button id="tangle-btn" onclick="startTangle()">Tangle</button>
-  <script src="main.js"></script>
-  <script src="hard_spheres.js"></script>
-  <script src="tangle.js"></script>
-  <script src="diagnostics.js"></script>
-  <script src="physics.js"></script>
-  <script src="rendering.js"></script>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <title>Knot</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                overflow: hidden;
+                background: #1a1a2e;
+            }
+            canvas {
+                display: block;
+            }
+            #ui {
+                position: fixed;
+                top: 16px;
+                left: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                font: 13px monospace;
+                user-select: none;
+            }
+            #tangle-btn {
+                padding: 8px 18px;
+                background: #383838;
+                color: #c9c9c9;
+                border: 1px solid #555;
+                border-radius: 4px;
+                cursor: pointer;
+                width: fit-content;
+            }
+            #tangle-btn:hover:not(:disabled) {
+                background: #484848;
+            }
+            #tangle-btn:disabled {
+                opacity: 0.5;
+                cursor: default;
+            }
+            #hint {
+                color: #777;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="c"></canvas>
+        <div id="ui">
+            <button id="tangle-btn" onclick="startTangle()">Tangle</button>
+            <span id="hint"
+                >left click: drag above </br> right click: drag under</span
+            >
+        </div>
+        <script src="main.js"></script>
+        <script src="hard_spheres.js"></script>
+        <script src="tangle.js"></script>
+        <script src="diagnostics.js"></script>
+        <script src="physics.js"></script>
+        <script src="rendering.js"></script>
+    </body>
 </html>
