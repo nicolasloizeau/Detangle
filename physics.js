@@ -15,8 +15,6 @@ function initCircle() {
     const q = points[(i + 2) % N_POINTS];
     return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
   });
-  gridCellSize = 4 * restLen;
-  crossings = [];
 }
 
 // ── Verlet integration (x, y, z) ─────────────────────────────────────────────
@@ -110,16 +108,20 @@ function applyLift() {
 
 // ── Step ─────────────────────────────────────────────────────────────────────
 function update() {
+  updateTangle(); // advance tangle state once per frame
   for (let s = 0; s < SUBSTEPS; s++) {
     if (dragged !== null) {
-      const dx = mouseX - dragTargetX, dy = mouseY - dragTargetY;
+      const tx = tangling ? tangleDestX : mouseX;
+      const ty = tangling ? tangleDestY : mouseY;
+      const speed = tangling ? TANGLE_DRAG_SPEED : DRAG_MAX_SPEED;
+      const dx = tx - dragTargetX, dy = ty - dragTargetY;
       const dist = Math.hypot(dx, dy);
-      if (dist > DRAG_MAX_SPEED) {
-        dragTargetX += dx / dist * DRAG_MAX_SPEED;
-        dragTargetY += dy / dist * DRAG_MAX_SPEED;
+      if (dist > speed) {
+        dragTargetX += dx / dist * speed;
+        dragTargetY += dy / dist * speed;
       } else {
-        dragTargetX = mouseX;
-        dragTargetY = mouseY;
+        dragTargetX = tx;
+        dragTargetY = ty;
       }
     }
     integrate();
@@ -128,99 +130,5 @@ function update() {
     solveConstraints();
     applyZDynamics();
   }
-  crossings = detectCrossings(points);
   updateDiagnostics(points);
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// CROSSINGS — read-only tracking; over/under is read live from z, never stored.
-// Strands are allowed to overlap freely; this only records where they cross.
-// ════════════════════════════════════════════════════════════════════════════
-
-// Map each segment to every grid cell its xy bounding box overlaps
-function buildGrid(pts, cellSize) {
-  const grid = new Map();
-  const n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const a = pts[i],
-      b = pts[(i + 1) % n];
-    const cx0 = Math.floor(Math.min(a.x, b.x) / cellSize);
-    const cy0 = Math.floor(Math.min(a.y, b.y) / cellSize);
-    const cx1 = Math.floor(Math.max(a.x, b.x) / cellSize);
-    const cy1 = Math.floor(Math.max(a.y, b.y) / cellSize);
-    for (let cx = cx0; cx <= cx1; cx++) {
-      for (let cy = cy0; cy <= cy1; cy++) {
-        const key = `${cx},${cy}`;
-        let cell = grid.get(key);
-        if (!cell) grid.set(key, (cell = []));
-        cell.push(i);
-      }
-    }
-  }
-  return grid;
-}
-
-// Unique unordered [lo, hi] segment pairs sharing at least one grid cell
-function candidatePairs(grid, n) {
-  const seen = new Set();
-  const pairs = [];
-  for (const segs of grid.values()) {
-    for (let a = 0; a < segs.length; a++) {
-      for (let b = a + 1; b < segs.length; b++) {
-        const lo = Math.min(segs[a], segs[b]);
-        const hi = Math.max(segs[a], segs[b]);
-        const key = lo * n + hi;
-        if (!seen.has(key)) {
-          seen.add(key);
-          pairs.push([lo, hi]);
-        }
-      }
-    }
-  }
-  return pairs;
-}
-
-// Parametric xy segment-segment intersection; null if none, parallel, or adjacent
-function segmentIntersect(pts, i, j) {
-  const n = pts.length;
-  if (j === (i + 1) % n || i === (j + 1) % n) return null; // share a node
-  const ax = pts[i].x,
-    ay = pts[i].y;
-  const bx = pts[(i + 1) % n].x,
-    by = pts[(i + 1) % n].y;
-  const cx = pts[j].x,
-    cy = pts[j].y;
-  const dx = pts[(j + 1) % n].x,
-    dy = pts[(j + 1) % n].y;
-  const rx = bx - ax,
-    ry = by - ay;
-  const sx = dx - cx,
-    sy = dy - cy;
-  const denom = rx * sy - ry * sx;
-  if (Math.abs(denom) < 1e-10) return null;
-  const ex = cx - ax,
-    ey = cy - ay;
-  const t = (ex * sy - ey * sx) / denom;
-  const u = (ex * ry - ey * rx) / denom;
-  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
-  return { point: { x: ax + t * rx, y: ay + t * ry }, ti: t, tj: u };
-}
-
-// All crossings this frame via grid → candidate pairs → intersect
-function detectCrossings(pts) {
-  const grid = buildGrid(pts, gridCellSize);
-  const out = [];
-  for (const [i, j] of candidatePairs(grid, pts.length)) {
-    const hit = segmentIntersect(pts, i, j);
-    if (hit) out.push({ pA: i + hit.ti, pB: j + hit.tj, point: hit.point });
-  }
-  return out;
-}
-
-// Interpolated z along the rope at loop position pos (used by rendering for over/under)
-function strandZ(pts, pos) {
-  const seg = Math.floor(pos) % pts.length;
-  const nxt = (seg + 1) % pts.length;
-  const f = pos - Math.floor(pos);
-  return pts[seg].z * (1 - f) + pts[nxt].z * f;
 }

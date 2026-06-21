@@ -3,19 +3,18 @@ const N_POINTS = 1024;
 const CIRCLE_RADIUS = 0.45; // fraction of the smaller canvas dimension
 const CONSTRAINT_ITER = 20;
 const DAMPING = 0.8; // lower = more friction
-const BEND_STIFFNESS = 0.1; // 0..1, resists sharp kinks
+const BEND_STIFFNESS = 0.3; // 0..1, resists sharp kinks
 const SUBSTEPS = 16; // integration steps per frame
 const GRAB_RADIUS = 30; // pixels
 
 const LINE_WIDTH = 8;
-const COLOR_BG = "#292929";
-const COLOR_ROPE = "#C9C9C9"; // brightness at z=0; height shades it up/down
-const Z_COLOR_RANGE = 30; // z at which the rope reaches full white (+) / black (−)
+const COLOR_BG = "#262626";
+const COLOR_ROPE = "#A8A8A8"; // brightness at z=0; height shades it up/down
+const Z_COLOR_RANGE = 10; // z at which the rope reaches full white (+) / black (−)
 
-const RENDER_CROSSING_LENGTH = 40; // pixels; fade window around each crossing (pass 1)
-const RENDER_CROSSING_LENGTH_2 = 12; // pixels; over-strand redraw width (pass 2)
-const CROSSING_DARK_FACTOR = 0.5; // brightness multiplier at the under-strand center (< 1)
-const CROSSING_LIGHT_FACTOR = 1.5; // brightness multiplier at the over-strand center  (> 1)
+// ── Tangle ────────────────────────────────────────────────────────────────────
+const TANGLE_STEPS = 50; // number of drag gestures per tangle sequence
+const TANGLE_DRAG_SPEED = 15; // pixels per substep the drag target moves during tangle
 
 // ── Debug ─────────────────────────────────────────────────────────────────────
 const DEBUG = false; // show HUD and red overlap markers
@@ -29,8 +28,8 @@ const HARD_SPHERE_IGNORE_STEPS = 12; // skip pairs within this many rope indices
 const COLLISION_ITER_INTERVAL = 5; // run collisionPass every Nth constraint iteration
 
 // ── Z / quasi-3D ─────────────────────────────────────────────────────────────
-const Z_GROUND = 0.01; // per-iter pull of each z toward the flat plane (z=0)
-const Z_STIFFNESS = 0.2; // out-of-plane Laplacian smoothing, 0..1 (independent of xy)
+const Z_GROUND = 0.2; // per-iter pull of each z toward the flat plane (z=0)
+const Z_STIFFNESS = 0.02; // out-of-plane Laplacian smoothing, 0..1 (independent of xy)
 const Z_DAMPING = DAMPING; // z friction in the Verlet step
 
 // Mouse lift: held button applies a continuous z-force to the grabbed stretch
@@ -46,8 +45,6 @@ const ctx = canvas.getContext("2d");
 let points = []; // [{ x, y, z, px, py, pz }, ...]
 let restLen = 0; // segment rest length (same for all segments)
 let bendRest = []; // rest distances for bending pairs (i → i+2)
-let crossings = []; // [{ pA, pB, point }] — over/under is read from z, not stored
-let gridCellSize = 24; // ~4 * restLen; updated in initCircle
 let dragged = null; // index of grabbed point, or null
 let dragButton = null; // 0=left, 2=right, null=none
 let mouseX = 0,
