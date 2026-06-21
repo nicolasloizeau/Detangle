@@ -19,6 +19,10 @@ function initCircle() {
     const q = points[(i + 2) % N_POINTS];
     return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
   });
+  for (let i = 0; i < N_POINTS; i++) {
+    _segRest2[i]  = segRest[i]  * segRest[i];
+    _bendRest2[i] = bendRest[i] * bendRest[i];
+  }
 }
 
 // ── Verlet integration (x, y, z) ─────────────────────────────────────────────
@@ -37,12 +41,16 @@ function integrate() {
 }
 
 // ── 3D constraints (inextensible + bending) ──────────────────────────────────
-// Restore target 3D distance between a and b; pinned (dragged) endpoints don't move
-function applyDist(a, b, target, stiffness, aPinned, bPinned) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const dz = b.z - a.z;
-  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
+// Precomputed squared rest lengths — avoids target*target per applyDist call.
+const _segRest2  = new Float64Array(N_POINTS);
+const _bendRest2 = new Float64Array(N_POINTS);
+
+// Full applyDist used only for the dragged case and bending constraints.
+function applyDist(a, b, target, targetSq, stiffness, aPinned, bPinned) {
+  const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+  const distSq = dx * dx + dy * dy + dz * dz;
+  if (Math.abs(distSq - targetSq) < targetSq * 1e-3) return;
+  const dist = Math.sqrt(distSq) || 1e-9;
   const corr = ((dist - target) / dist) * stiffness;
   if (!aPinned && !bPinned) {
     a.x += dx * corr * 0.5;  a.y += dy * corr * 0.5;  a.z += dz * corr * 0.5;
@@ -57,16 +65,50 @@ function applyDist(a, b, target, stiffness, aPinned, bPinned) {
 function solveConstraints() {
   const n = points.length;
   for (let iter = 0; iter < CONSTRAINT_ITER; iter++) {
-    // Segment constraints — unroll wrap to avoid % n in the inner loop
-    for (let i = 0; i < n - 1; i++)
-      applyDist(points[i], points[i + 1], segRest[i], 1, i === dragged, i + 1 === dragged);
-    applyDist(points[n - 1], points[0], segRest[n - 1], 1, n - 1 === dragged, 0 === dragged);
 
-    // Bending constraints — unroll last two wrap cases
-    for (let i = 0; i < n - 2; i++)
-      applyDist(points[i], points[i + 2], bendRest[i], BEND_STIFFNESS, i === dragged, i + 2 === dragged);
-    applyDist(points[n - 2], points[0], bendRest[n - 2], BEND_STIFFNESS, n - 2 === dragged, 0 === dragged);
-    applyDist(points[n - 1], points[1], bendRest[n - 1], BEND_STIFFNESS, n - 1 === dragged, 1 === dragged);
+    if (dragged === null) {
+      // ── Fast path: no pinning — inline segment constraints, skip branch checks ──
+      for (let i = 0; i < n - 1; i++) {
+        const a = points[i], b = points[i + 1];
+        const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const tSq = _segRest2[i];
+        if (Math.abs(distSq - tSq) < tSq * 1e-3) continue;
+        const dist = Math.sqrt(distSq) || 1e-9;
+        const c = (dist - segRest[i]) / dist * 0.5;
+        a.x += dx * c;  a.y += dy * c;  a.z += dz * c;
+        b.x -= dx * c;  b.y -= dy * c;  b.z -= dz * c;
+      }
+      { // wrap segment n-1 → 0
+        const a = points[n - 1], b = points[0];
+        const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const tSq = _segRest2[n - 1];
+        if (Math.abs(distSq - tSq) >= tSq * 1e-3) {
+          const dist = Math.sqrt(distSq) || 1e-9;
+          const c = (dist - segRest[n - 1]) / dist * 0.5;
+          a.x += dx * c;  a.y += dy * c;  a.z += dz * c;
+          b.x -= dx * c;  b.y -= dy * c;  b.z -= dz * c;
+        }
+      }
+      if (iter & 1) {
+        for (let i = 0; i < n - 2; i++)
+          applyDist(points[i], points[i + 2], bendRest[i], _bendRest2[i], BEND_STIFFNESS, false, false);
+        applyDist(points[n-2], points[0], bendRest[n-2], _bendRest2[n-2], BEND_STIFFNESS, false, false);
+        applyDist(points[n-1], points[1], bendRest[n-1], _bendRest2[n-1], BEND_STIFFNESS, false, false);
+      }
+    } else {
+      // ── Slow path: one point is pinned — use full applyDist with pin checks ──
+      for (let i = 0; i < n - 1; i++)
+        applyDist(points[i], points[i+1], segRest[i], _segRest2[i], 1, i===dragged, i+1===dragged);
+      applyDist(points[n-1], points[0], segRest[n-1], _segRest2[n-1], 1, n-1===dragged, 0===dragged);
+      if (iter & 1) {
+        for (let i = 0; i < n - 2; i++)
+          applyDist(points[i], points[i+2], bendRest[i], _bendRest2[i], BEND_STIFFNESS, i===dragged, i+2===dragged);
+        applyDist(points[n-2], points[0], bendRest[n-2], _bendRest2[n-2], BEND_STIFFNESS, n-2===dragged, 0===dragged);
+        applyDist(points[n-1], points[1], bendRest[n-1], _bendRest2[n-1], BEND_STIFFNESS, n-1===dragged, 1===dragged);
+      }
+    }
 
     if (dragged !== null) {
       points[dragged].x = dragTargetX;
