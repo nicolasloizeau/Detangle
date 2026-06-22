@@ -4,7 +4,7 @@ const CIRCLE_RADIUS = 0.3; // fraction of the smaller canvas dimension
 const WIGGLE_AMPLITUDE = 0.5; // radial wiggle amplitude as fraction of circle radius
 const WIGGLE_FREQUENCY = 13; // number of sine wiggles per revolution
 const CONSTRAINT_ITER = 20;
-const DAMPING = 0.8; // lower = more friction
+const DAMPING = 0.9; // lower = more friction
 const BEND_STIFFNESS = 0.3; // 0..1, resists sharp kinks
 const SUBSTEPS = 20; // integration steps per frame
 const GRAB_RADIUS = 30; // pixels
@@ -28,8 +28,9 @@ const DRAG_MAX_SPEED = 5; // max px the drag target moves toward the cursor per 
 const SPHERE_RADIUS = LINE_WIDTH; // collision sphere radius per rope point (px)
 const HARD_SPHERE_IGNORE_STEPS = 12; // skip pairs within this many rope indices
 const COLLISION_ITER_INTERVAL = 4; // run collisionPass every Nth constraint iteration
-const CONTACT_FRICTION = 0.2; // tangential velocity damped per contact (0=frictionless, 1=full stop)
-const FRICTION_RADIUS_FACTOR = 2; // friction applies up to this multiple of the sphere diameter
+const CONTACT_FRICTION = 0.2;        // tangential velocity damped per contact (0=none, 1=full stop)
+const CONTACT_NORMAL_DAMPING = 0.5;  // approach velocity damped per contact — counters tension-driven pass-throughs
+const FRICTION_RADIUS_FACTOR = 4; // friction applies up to this multiple of the sphere diameter
 
 // ── Z / quasi-3D ─────────────────────────────────────────────────────────────
 const Z_GROUND = 0.01; // per-iter pull of each z toward the flat plane (z=0)
